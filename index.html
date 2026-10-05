@@ -6,7 +6,7 @@
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#1e293b" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <title>لوحة إدارة الموظفين - فرز حسب الوقت</title>
+  <title>لوحة التتبع - الوقت والزيارات</title>
   <script src="https://cdn.tailwindcss.com "></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js "></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css ">
@@ -124,8 +124,11 @@
   
   <div class="max-w-7xl mx-auto p-6">
     <header class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-      <h1 class="text-2xl sm:text-3xl font-bold text-slate-800">لوحة إدارة الموظفين - تتبع الوقت والزيارات</h1>
-      <div class="flex gap-2">
+      <h1 class="text-2xl sm:text-3xl font-bold text-slate-800">لوحة التتبع - الوقت والزيارات</h1>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="backupData()" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-xl shadow flex items-center gap-2 transition-all"><i class="fas fa-save"></i> نسخ احتياطي</button>
+        <button onclick="document.getElementById('importFile').click()" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-xl shadow flex items-center gap-2 transition-all"><i class="fas fa-upload"></i> استعادة</button>
+        <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(this)">
         <button onclick="exportExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl shadow flex items-center gap-2 transition-all">
           <i class="fas fa-download"></i> تصدير Excel
         </button>
@@ -136,12 +139,18 @@
     </header>
 
     <!-- إضافة قائمة جديدة -->
-    <section class="mb-6 flex gap-2 items-center bg-white p-4 rounded-2xl shadow">
+    <section class="mb-4 flex flex-wrap gap-2 items-center bg-white p-4 rounded-2xl shadow">
       <input id="listName" placeholder="اسم القائمة" class="border rounded-xl px-4 py-2 w-64 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      <select id="listKind" class="border rounded-xl px-3 py-2"></select>
       <input id="listColor" type="color" value="#4CAF50" class="w-10 h-10 border rounded-xl cursor-pointer">
       <button onclick="addList()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl shadow flex items-center gap-2 transition-all">
         <i class="fas fa-plus"></i> إضافة قائمة
       </button>
+    </section>
+
+    <section class="mb-4 flex flex-wrap gap-2">
+      <input id="q" oninput="render()" placeholder="🔍 بحث بالاسم" class="border rounded-xl px-4 py-2 flex-1 min-w-[10rem] bg-white">
+      <select id="stFilter" onchange="render()" class="border rounded-xl px-3 py-2 bg-white"></select>
     </section>
 
     <!-- عرض القوائم -->
@@ -186,6 +195,20 @@
     let draggedEmployee = null;
     let sourceListId = null;
     let draggedRowIndex = null;
+    const KINDS = {
+      emp: { n: 'موظفون', i: 'موظف', v: 'زيارة' },
+      teacher: { n: 'معلم', i: 'طالب', v: 'حصة' },
+      sales: { n: 'مبيعات', i: 'عميل', v: 'زيارة' },
+      clinic: { n: 'عيادة', i: 'مريض', v: 'جلسة' },
+      free: { n: 'مستقل', i: 'مشروع', v: 'جلسة عمل' },
+      custom: { n: 'مخصص' }
+    };
+    const ST = { run: 'مفتوح', hold: 'مؤجل', done: 'مغلق' };
+    const STC = { run: 'bg-blue-100 text-blue-700', hold: 'bg-yellow-100 text-yellow-700', done: 'bg-gray-200 text-gray-600' };
+    const labels = l => l.kind === 'custom' ? { i: l.i || 'عنصر', v: l.v || 'زيارة' } : (KINDS[l.kind] || KINDS.emp);
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const today = () => new Date().toLocaleDateString('sv');
+    const amount = e => e.rate > 0 ? (calculateTotalTime(e.timeLogs) / 3600000 * e.rate).toFixed(2) : '';
 
     function save() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -196,15 +219,21 @@
       const name = document.getElementById('listName').value.trim();
       const color = document.getElementById('listColor').value;
       if (!name) return alert('أدخل اسم القائمة');
-      state.lists.push({ id: Date.now(), name, color, employees: [] });
+      const kind = document.getElementById('listKind').value;
+      const list = { id: Date.now(), name, color, kind, employees: [] };
+      if (kind === 'custom') {
+        list.i = prompt('اسم العنصر (مثال: عميل):') || 'عنصر';
+        list.v = prompt('اسم الزيارة (مثال: جلسة):') || 'زيارة';
+      }
+      state.lists.push(list);
       save();
       document.getElementById('listName').value = '';
     }
 
     function addEmployee(listId) {
-      const name = prompt('اسم الموظف:');
-      if (!name) return;
       const list = state.lists.find(l => l.id === listId);
+      const name = prompt(`اسم ${labels(list).i}:`);
+      if (!name) return;
       const now = new Date();
       const time = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
       list.employees.push({ 
@@ -221,7 +250,7 @@
     }
 
     function deleteEmployee(listId, empId) {
-      if (!confirm('هل أنت متأكد من حذف هذا الموظف؟')) return;
+      if (!confirm('هل أنت متأكد من الحذف؟')) return;
       
       const list = state.lists.find(l => l.id === listId);
       list.employees = list.employees.filter(e => e.id !== empId);
@@ -275,7 +304,7 @@
             
           div.innerHTML = `
             <div class="flex justify-between items-center">
-              <span class="font-semibold">الزيارة ${index + 1}</span>
+              <span class="font-semibold">${esc(labels(list).v)} ${index + 1}</span>
               <span class="text-sm ${log.endTime ? 'text-green-600' : 'text-blue-600'}">${duration}</span>
             </div>
             <div class="text-xs text-gray-500 mt-1">
@@ -292,7 +321,7 @@
         formatDuration(totalTime / emp.timeLogs.filter(log => log.endTime).length) : 
         '00:00:00';
       
-      document.getElementById('totalTime').textContent = `إجمالي الوقت: ${formatDuration(totalTime)}`;
+      document.getElementById('totalTime').textContent = `إجمالي الوقت: ${formatDuration(totalTime)}${amount(emp) ? ` | المستحق: ${amount(emp)}` : ''}`;
       document.getElementById('averageTime').textContent = `متوسط الوقت: ${averageTime}`;
       
       document.getElementById('timeLogPanel').style.display = 'flex';
@@ -521,30 +550,49 @@
           emp.timeLogs.some(log => log.endTime === null)
         ).length;
 
+        const lb = { i: esc(labels(list).i), v: esc(labels(list).v) };
+        const q = document.getElementById('q').value.trim().toLowerCase();
+        const sf = document.getElementById('stFilter').value;
+        const td = today();
+        const view = list.employees.map((emp, index) => ({ emp, index }))
+          .filter(({ emp }) => emp.name.toLowerCase().includes(q) && (!sf || (emp.status || 'run') === sf));
+        const by = {
+          recent: (a, b) => (b.emp.lastTime || 0) - (a.emp.lastTime || 0),
+          time: (a, b) => calculateTotalTime(b.emp.timeLogs) - calculateTotalTime(a.emp.timeLogs),
+          name: (a, b) => a.emp.name.localeCompare(b.emp.name, 'ar')
+        }[list.sort];
+        if (typeof by === 'function') view.sort(by);
+        const manual = typeof by !== 'function' && !q && !sf;
+        const overdue = list.employees.filter(e => e.next && e.next < td && e.status !== 'done').length;
+
         section.innerHTML = `
           <div class="flex justify-between items-center mb-3 list-header">
             <div>
-              <input class="list-name font-bold text-lg bg-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none px-2 py-1 rounded" value="${list.name}" onchange="renameList(${list.id}, this.value)">
-              <span class="text-xs text-gray-500 block">${list.employees.length} موظف | ${employeesWithActiveVisits} زيارة نشطة</span>
+              <input class="list-name font-bold text-lg bg-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none px-2 py-1 rounded" value="${esc(list.name)}" onchange="renameList(${list.id}, this.value)">
+              <span class="text-xs text-gray-500 block">${list.employees.length} ${lb.i} | ${employeesWithActiveVisits} ${lb.v} نشطة${overdue ? ` | <span class="text-red-600">${overdue} متأخر</span>` : ''}</span>
             </div>
             <div class="flex items-center gap-2">
-              <input type="color" value="${list.color}" onchange="changeColor(${list.id}, this.value)" class="w-8 h-8 border rounded cursor-pointer">
+              <select onchange="setSort(${list.id}, this.value)" class="text-xs border rounded p-1">
+                ${[['', 'يدوي'], ['recent', 'الأحدث'], ['time', 'الأكثر وقتاً'], ['name', 'الاسم']].map(([v, t]) => `<option value="${v}" ${(list.sort || '') === v ? 'selected' : ''}>${t}</option>`).join('')}
+              </select>
+              <input type="color" value="${esc(list.color)}" onchange="changeColor(${list.id}, this.value)" class="w-8 h-8 border rounded cursor-pointer">
               <button class="text-red-500 hover:text-red-700 transition-colors" onclick="deleteList(${list.id})">
                 <i class="fas fa-trash"></i>
               </button>
             </div>
           </div>
           <button onclick="addEmployee(${list.id})" class="mb-3 w-full py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow flex items-center justify-center gap-2 transition-all">
-            <i class="fas fa-user-plus"></i> إضافة موظف
+            <i class="fas fa-user-plus"></i> إضافة ${lb.i}
           </button>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b">
                   <th class="text-right p-2">الاسم</th>
-                  <th class="text-center p-2">الزيارات</th>
-                  <th class="text-center p-2">آخر زيارة</th>
+                  <th class="text-center p-2">عدد: ${lb.v}</th>
+                  <th class="text-center p-2">آخر ${lb.v}</th>
                   <th class="text-center p-2">إجمالي الوقت</th>
+                  <th class="text-center p-2">المتابعة</th>
                   <th class="text-center p-2">إجراءات</th>
                 </tr>
               </thead>
@@ -552,10 +600,13 @@
                 ondrop="onDrop(event, ${list.id})" 
                 ondragover="onDragOver(event, ${list.id})" 
                 ondragleave="onDragLeave(event)">
-                ${list.employees.map((emp, index) => {
+                ${view.map(({ emp, index }) => {
                   const totalTime = calculateTotalTime(emp.timeLogs);
                   const activeVisit = emp.timeLogs.some(log => log.endTime === null);
-                  
+                  const st = ST[emp.status] ? emp.status : 'run';
+                  const late = emp.next && emp.next < td && st !== 'done';
+                  const amt = amount(emp);
+
                   return `
                   <tr class="employee-row border-b ${activeVisit ? 'bg-blue-50' : ''}" 
                       draggable="true" 
@@ -564,7 +615,11 @@
                       ondrop="onDrop(event, ${list.id}, ${index})"
                       ondragover="onDragOver(event, ${list.id})"
                       ondragleave="onDragLeave(event)">
-                    <td class="p-2 font-medium">${emp.name} ${activeVisit ? '<span class="text-xs text-blue-500">(نشط)</span>' : ''}</td>
+                    <td class="p-2 font-medium">
+                      ${manual ? `<span class="inline-flex flex-col leading-none ml-1 text-[10px] text-gray-400"><button onclick="event.stopPropagation(); moveEmp(${list.id}, ${emp.id}, -1)">▲</button><button onclick="event.stopPropagation(); moveEmp(${list.id}, ${emp.id}, 1)">▼</button></span>` : ''}
+                      ${esc(emp.name)} ${activeVisit ? '<span class="text-xs text-blue-500">(نشط)</span>' : ''}
+                      <button onclick="event.stopPropagation(); cycleStatus(${list.id}, ${emp.id})" class="text-xs rounded px-1 ${STC[st]}">${ST[st]}</button>
+                    </td>
                     <td class="p-2 text-center">
                       <div class="flex items-center justify-center gap-1">
                         <button onclick="event.stopPropagation(); updateVisits(${list.id}, ${emp.id}, -1)" class="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center hover:bg-red-200 transition-colors">-</button>
@@ -573,7 +628,8 @@
                       </div>
                     </td>
                     <td class="p-2 text-center">${emp.lastVisit || '-'}</td>
-                    <td class="p-2 text-center">${formatDuration(totalTime)}</td>
+                    <td class="p-2 text-center">${formatDuration(totalTime)}${amt ? `<div class="text-xs text-green-600">${amt}</div>` : ''}</td>
+                    <td class="p-2 text-center"><input type="date" value="${esc(emp.next || '')}" onclick="event.stopPropagation()" onchange="setNext(${list.id}, ${emp.id}, this.value)" class="text-xs border rounded p-1 ${late ? 'border-red-500 text-red-600' : ''}"></td>
                     <td class="p-2 text-center">
                       <button onclick="event.stopPropagation(); openTimeLog(${list.id}, ${emp.id})" class="bg-blue-100 text-blue-600 p-1 rounded mx-1 hover:bg-blue-200 transition-colors" title="سجل الوقت">
                         <i class="fas fa-clock"></i>
@@ -584,6 +640,9 @@
                       <button onclick="event.stopPropagation(); openNotes(${list.id}, ${emp.id})" class="bg-green-100 text-green-600 p-1 rounded mx-1 hover:bg-green-200 transition-colors" title="ملاحظات">
                         <i class="fas fa-comment"></i>
                       </button>
+                      <button onclick="event.stopPropagation(); setRate(${list.id}, ${emp.id})" class="bg-purple-100 text-purple-600 p-1 rounded mx-1 hover:bg-purple-200 transition-colors" title="السعر بالساعة">
+                        <i class="fas fa-dollar-sign"></i>
+                      </button>
                       <button onclick="event.stopPropagation(); deleteEmployee(${list.id}, ${emp.id})" class="bg-red-100 text-red-600 p-1 rounded mx-1 hover:bg-red-200 transition-colors" title="حذف">
                         <i class="fas fa-trash"></i>
                       </button>
@@ -593,15 +652,77 @@
                 }).join('')}
               </tbody>
             </table>
-            ${list.employees.length === 0 ? `
-              <p class="text-center text-gray-500 py-4">لا يوجد موظفين في هذه القائمة</p>
+            ${view.length === 0 ? `
+              <p class="text-center text-gray-500 py-4">${list.employees.length ? 'لا توجد نتائج' : 'القائمة فارغة'}</p>
             ` : ''}
           </div>
           <div class="mt-3 text-xs text-gray-500 text-center">
-            اسحب الموظفين بين القوائم أو داخل نفس القائمة لإعادة الترتيب
+            اسحب العناصر بين القوائم، أو استخدم ▲▼ للترتيب
           </div>
         `;
         container.appendChild(section);
+      });
+    }
+
+    const findEmp = (lid, eid) => state.lists.find(l => l.id === lid).employees.find(e => e.id === eid);
+
+    function setSort(id, v) {
+      state.lists.find(l => l.id === id).sort = v;
+      save();
+    }
+
+    function cycleStatus(lid, eid) {
+      const e = findEmp(lid, eid), k = Object.keys(ST);
+      e.status = k[(k.indexOf(e.status || 'run') + 1) % k.length];
+      save();
+    }
+
+    function setNext(lid, eid, v) {
+      findEmp(lid, eid).next = v;
+      save();
+    }
+
+    function setRate(lid, eid) {
+      const e = findEmp(lid, eid);
+      const v = parseFloat(prompt('السعر بالساعة (0 للحذف):', e.rate || ''));
+      if (isNaN(v)) return;
+      e.rate = v;
+      save();
+    }
+
+    function moveEmp(lid, eid, d) {
+      const a = state.lists.find(l => l.id === lid).employees;
+      const i = a.findIndex(e => e.id === eid), j = i + d;
+      if (j < 0 || j >= a.length) return;
+      [a[i], a[j]] = [a[j], a[i]];
+      save();
+    }
+
+    function backupData() {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
+      a.download = `nomoor-backup-${today()}.json`;
+      a.click();
+    }
+
+    function importData(inp) {
+      const f = inp.files[0];
+      inp.value = '';
+      if (!f) return;
+      f.text().then(t => {
+        try {
+          const d = JSON.parse(t);
+          const ok = Array.isArray(d.lists) && d.lists.every(l => typeof l.id === 'number' && Array.isArray(l.employees) &&
+            l.employees.every(e => typeof e.id === 'number' && Array.isArray(e.timeLogs) && Array.isArray(e.notes)));
+          if (!ok) throw 0;
+          if (!confirm('سيتم استبدال البيانات الحالية. متابعة؟')) return;
+          state = d;
+          state.activities ||= [];
+          state.entries ||= [];
+          save();
+        } catch (err) {
+          alert('ملف غير صالح');
+        }
       });
     }
 
@@ -627,7 +748,8 @@
     function exportExcel() {
       const wb = XLSX.utils.book_new();
       state.lists.forEach(list => {
-        const rows = [['القائمة', 'الاسم', 'عدد الزيارات', 'آخر زيارة', 'إجمالي الوقت', 'الملاحظات']];
+        const lb = labels(list);
+        const rows = [['القائمة', 'الاسم', `عدد ${lb.v}`, `آخر ${lb.v}`, 'إجمالي الوقت', 'الحالة', 'المتابعة', 'السعر/ساعة', 'المستحق', 'الملاحظات']];
         list.employees.forEach(emp => {
           const totalTime = calculateTotalTime(emp.timeLogs);
           rows.push([
@@ -636,6 +758,10 @@
             emp.visits, 
             emp.lastVisit || '-', 
             formatDuration(totalTime),
+            ST[emp.status] || ST.run,
+            emp.next || '-',
+            emp.rate || '-',
+            amount(emp) || '-',
             emp.notes.join(' | ')
           ]);
         });
@@ -643,12 +769,12 @@
         XLSX.utils.book_append_sheet(wb, ws, list.name);
       });
 
-      const summary = [['القائمة', 'عدد الموظفين', 'إجمالي الزيارات', 'متوسط الزيارات', 'إجمالي الوقت']];
+      const summary = [['القائمة', 'عدد العناصر', 'إجمالي الزيارات', 'متوسط الزيارات', 'إجمالي الوقت', 'المستحق']];
       state.lists.forEach(list => {
         const totalVisits = list.employees.reduce((sum, e) => sum + e.visits, 0);
         const totalTime = list.employees.reduce((sum, e) => sum + calculateTotalTime(e.timeLogs), 0);
         const avg = list.employees.length ? (totalVisits / list.employees.length).toFixed(1) : 0;
-        summary.push([list.name, list.employees.length, totalVisits, avg, formatDuration(totalTime)]);
+        summary.push([list.name, list.employees.length, totalVisits, avg, formatDuration(totalTime), list.employees.reduce((t, e) => t + (+amount(e) || 0), 0).toFixed(2)]);
       });
       const wsSummary = XLSX.utils.aoa_to_sheet(summary);
       XLSX.utils.book_append_sheet(wb, wsSummary, 'تلخيص');
@@ -668,6 +794,8 @@
       closeTimeLog();
     });
 
+    document.getElementById('listKind').innerHTML = Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v.n}</option>`).join('');
+    document.getElementById('stFilter').innerHTML = '<option value="">كل الحالات</option>' + Object.entries(ST).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
     render();
   </script>
   <script src="activities.js"></script>

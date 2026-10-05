@@ -36,7 +36,7 @@
   const app = document.createElement('div');
   nav.className = 'max-w-7xl mx-auto px-6 pt-4 flex gap-2';
   app.className = 'max-w-7xl mx-auto p-6';
-  nav.innerHTML = [['act', 'الأنشطة'], ['work', 'الزيارات']]
+  nav.innerHTML = [['act', 'الأنشطة'], ['work', 'القوائم']]
     .map(([k, l]) => `<button data-tab="${k}" class="px-4 py-2 rounded-xl border">${l}</button>`).join('');
   work.before(nav);
   work.after(app);
