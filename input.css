@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+    .drag-over {
+      background-color: #f0f9ff;
+      border: 2px dashed #3b82f6;
+    }
+    .dragging {
+      opacity: 0.5;
+      transform: scale(0.98);
+    }
+    .employee-row {
+      transition: all 0.2s ease;
+      cursor: grab;
+    }
+    .employee-row:hover {
+      background-color: #f8fafc;
+    }
+    .notes-panel {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px;
+      max-width: 90%;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      padding: 20px;
+      flex-direction: column;
+      z-index: 1000;
+      max-height: 80vh;
+    }
+    .time-log-panel {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      max-width: 90%;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      padding: 20px;
+      flex-direction: column;
+      z-index: 1000;
+      max-height: 80vh;
+    }
+    .note {
+      background: #f1f5f9;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .time-log-entry {
+      background: #f8fafc;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      border-right: 4px solid #3b82f6;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+    }
+    .list-header {
+      cursor: move;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .pulse-animation {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+    .progress-bar {
+      height: 8px;
+      background-color: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .progress-fill {
+      height: 100%;
+      background-color: #10b981;
+      border-radius: 4px;
+    }
+    .drop-zone {
+      border: 2px dashed transparent;
+      transition: all 0.3s ease;
+    }
+    .drop-zone.drag-over {
+      border-color: #3b82f6;
+      background-color: #f0f9ff;
+    }
+  
+body { padding-top: env(safe-area-inset-top); }
+[data-timer] { font-variant-numeric: tabular-nums; }

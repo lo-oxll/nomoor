@@ -1,5 +1,9 @@
-const V = 'nomoor-v2';
-const CORE = ['./', 'index.html', 'activities.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+const V = 'nomoor-v3';
+const CORE = [
+  './', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'css/app.css',
+  'js/core.js', 'js/lists.js', 'js/activities.js', 'js/ledger.js', 'js/home.js',
+  'vendor/xlsx.full.min.js', 'vendor/fa/css/all.min.css', 'vendor/fa/webfonts/fa-solid-900.woff2'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
