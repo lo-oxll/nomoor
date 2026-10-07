@@ -1,4 +1,4 @@
-const V = 'nomoor-v5';
+const V = 'nomoor-v6';
 const CORE = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
