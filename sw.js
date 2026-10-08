@@ -1,4 +1,4 @@
-const V = 'nomoor-v7';
+const V = 'nomoor-v8';
 const TILES = 'nomoor-tiles';
 const CORE = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
